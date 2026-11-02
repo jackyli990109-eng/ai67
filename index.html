@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <!-- 設定網頁編碼格式為 UTF-8 -->
+    <meta charset="UTF-8">
+    <!-- 設定響應式視埠，適合手機與電腦螢幕 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 網頁標題 -->
+    <title>元氣騎士夜間冒險 (Soul Knight Mini)</title>
+    <!-- 引入 Google Fonts 卡通風格字型 (Press Start 2P 像素風 / Fredoka 圓潤風格) -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <style>
+        /* CSS 重置與全域樣式設定 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none; /* 防止遊戲中選取文字 */
+            font-family: 'Fredoka', 'Press Start 2P', sans-serif;
+        }
+
+        /* 網頁主體：佔滿螢幕並隱藏溢出捲軸 */
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #0b0c10;
+        }
+
+        /* 主遊戲容器：維持 16:9 比例與卡漫風邊框 */
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 1000px;
+            height: 100%;
+            max-height: 625px;
+            border: 6px solid #2d1b4e;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px rgba(106, 90, 205, 0.4);
+            overflow: hidden;
+            background: linear-gradient(to bottom, #090a0f 0%, #121526 60%, #1a1c2e 100%);
+        }
+
+        /* ---- 夜晚動態背景 CSS 效果 ---- */
+        
+        /* 月亮樣式與浮動動畫 */
+        .moon {
+            position: absolute;
+            top: 40px;
+            right: 60px;
+            width: 70px;
+            height: 70px;
+            background-color: #fffae6;
+            border-radius: 50%;
+            box-shadow: 0 0 30px #fffae6, 0 0 60px rgba(255, 250, 230, 0.4);
+            animation: moonGlow 4s ease-in-out infinite alternate;
+            z-index: 1;
+        }
+
+        /* 月亮呼吸發光動畫 */
+        @keyframes moonGlow {
+            0% { transform: translateY(0px); box-shadow: 0 0 25px #fffae6; }
+            100% { transform: translateY(-8px); box-shadow: 0 0 45px #fffae6, 0 0 80px rgba(255, 250, 230, 0.6); }
+        }
+
+        /* 雲朵通用樣式與飄動動畫 */
+        .cloud {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50px;
+            opacity: 0.8;
+            z-index: 2;
+            animation: cloudMove linear infinite;
+        }
+
+        /* 雲朵飄動 Keyframes */
+        @keyframes cloudMove {
+            0% { transform: translateX(1000px); }
+            100% { transform: translateX(-300px); }
+        }
+
+        /* 遊戲畫布 Canvas */
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+            cursor: crosshair; /* 瞄準準心游標 */
+        }
+
+        /* ---- 卡通 UI 面板樣式 ---- */
+        
+        /* 頂部玩家狀態 UI (血條、能量條、波次) */
+        #ui-layer {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            z-index: 10;
+            pointer-events: none; /* 讓點擊穿透到 Canvas */
+        }
+
+        /* 左側狀態欄包裝盒 */
+        .status-box {
+            background: rgba(20, 15, 35, 0.85);
+            border: 4px solid #4a3b69;
+            border-radius: 16px;
+            padding: 12px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 6px 0px rgba(0,0,0,0.4);
+        }
+
+        /* 狀態條 (血量 / 能量) 容器 */
+        .bar-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* 狀態圖示標籤 */
+        .bar-label {
+            font-size: 14px;
+            font-weight: 700;
+            color: #ffffff;
+            width: 35px;
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        /* 條狀背景槽 */
+        .bar-bg {
+            width: 160px;
+            height: 18px;
+            background-color: #1a162b;
+            border: 3px solid #000;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 生命值填滿條 */
+        #hp-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #ff5252, #c62828);
+            border-radius: 5px;
+            transition: width 0.2s ease-out;
+        }
+
+        /* 能量值填滿條 */
+        #energy-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #448aff, #1565c0);
+            border-radius: 5px;
+            transition: width 0.2s ease-out;
+        }
+
+        /* 右側波次與分數 UI */
+        .score-box {
+            background: rgba(20, 15, 35, 0.85);
+            border: 4px solid #4a3b69;
+            border-radius: 16px;
+            padding: 10px 20px;
+            text-align: right;
+            color: #fff;
+            box-shadow: 0 6px 0px rgba(0,0,0,0.4);
+        }
+
+        .wave-text {
+            font-size: 20px;
+            font-weight: 700;
+            color: #ffd700;
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        .score-text {
+            font-size: 14px;
+            color: #b388ff;
+            text-shadow: 1px 1px 0px #000;
+        }
+
+        /* 技能與武器快捷 UI 欄 */
+        #hud-bottom {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .hud-card {
+            background: rgba(20, 15, 35, 0.85);
+            border: 3px solid #4a3b69;
+            border-radius: 12px;
+            padding: 6px 14px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 0px rgba(0,0,0,0.4);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .skill-cd-active {
+            border-color: #ffd700;
+            background: rgba(80, 60, 10, 0.9);
+            color: #ffd700;
+        }
+
+        /* ---- 遊戲選單與結算 overlay 彈窗 ---- */
+        .overlay-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 8, 20, 0.85);
+            backdrop-filter: blur(4px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            gap: 20px;
+        }
+
+        /* 隱藏彈窗樣式 */
+        .hidden {
+            display: none !important;
+        }
+
+        /* 主標題卡通文字樣式 */
+        .game-title {
+            font-size: 42px;
+            font-weight: 700;
+            color: #ffca28;
+            text-shadow: 4px 4px 0px #c62828, 8px 8px 0px #000;
+            letter-spacing: 2px;
+            text-align: center;
+        }
+
+        /* 卡通圓角按鈕 */
+        .btn-start {
+            padding: 14px 40px;
+            font-size: 22px;
+            font-weight: 700;
+            color: #ffffff;
+            background: linear-gradient(to bottom, #7c4dff, #512da8);
+            border: 4px solid #000;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 8px 0px #311b92, 0 12px 15px rgba(0,0,0,0.5);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+
+        /* 按鈕懸停效果 */
+        .btn-start:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 0px #311b92, 0 15px 20px rgba(0,0,0,0.6);
+            background: linear-gradient(to bottom, #b388ff, #673ab7);
+        }
+
+        /* 按鈕點擊效果 */
+        .btn-start:active {
+            transform: translateY(6px);
+            box-shadow: 0 2px 0px #311b92, 0 5px 10px rgba(0,0,0,0.4);
+        }
+
+        /* 操作說明文字 */
+        .controls-hint {
+            color: #e0e0e0;
+            font-size: 16px;
+            background: rgba(255,255,255,0.1);
+            padding: 10px 20px;
+            border-radius: 20px;
+            border: 2px dashed rgba(255,255,255,0.3);
+            text-align: center;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 遊戲主容器 -->
+    <div id="game-container">
+        
+        <!-- 夜晚動態背景元素 -->
+        <div class="moon"></div>
+        <!-- 動態飄動的雲朵 (由 CSS 動畫控制) -->
+        <div class="cloud" style="top: 30px; width: 140px; height: 35px; animation-duration: 25s;"></div>
+        <div class="cloud" style="top: 90px; width: 200px; height: 45px; animation-duration: 40s; animation-delay: -10s;"></div>
+        <div class="cloud" style="top: 150px; width: 100px; height: 30px; animation-duration: 18s; animation-delay: -5s;"></div>
+
+        <!-- 遊戲主繪圖 Canvas 區域 -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- 頂部遊戲 UI 層 (HP / MP / 波次) -->
+        <div id="ui-layer">
+            <div class="status-box">
+                <!-- HP 生命條 -->
+                <div class="bar-container">
+                    <span class="bar-label">HP</span>
+                    <div class="bar-bg">
+                        <div id="hp-bar"></div>
+                    </div>
+                </div>
+                <!-- MP 能量條 -->
+                <div class="bar-container">
+                    <span class="bar-label">MP</span>
+                    <div class="bar-bg">
+                        <div id="energy-bar"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右上角波次與分數 -->
+            <div class="score-box">
+                <div id="wave-display" class="wave-text">WAVE 1</div>
+                <div id="score-display" class="score-text">SCORE: 0</div>
+            </div>
+        </div>
+
+        <!-- 底部技能與武器狀態 HUD -->
+        <div id="hud-bottom">
+            <div id="weapon-hud" class="hud-card">🔫 武器: 熾熱手槍 (切換: Q / 數字1-3)</div>
+            <div id="skill-hud" class="hud-card">⚡ 技能: 雙倍火力 [Space] (冷卻中)</div>
+        </div>
+
+        <!-- 遊戲開始 / 結束 Overlay 畫面 -->
+        <div id="start-screen" class="overlay-screen">
+            <h1 class="game-title">元氣騎士：夜間冒險</h1>
+            <div class="controls-hint">
+                🕹️ <b>操作說明：</b><br>
+                移動：<b>WASD</b> 或 <b>方向鍵</b><br>
+                瞄準與射擊：<b>滑鼠移動</b> 與 <b>左鍵點擊</b><br>
+                切換武器：<b>Q 鍵</b> 或 <b>數字鍵 1 - 3</b><br>
+                爆發技能：<b>空白鍵 (Space)</b> 雙持狂暴射擊 (消耗 15 MP)
+            </div>
+            <button id="start-btn" class="btn-start">開始冒險</button>
+        </div>
+
+        <!-- 遊戲結束選單 -->
+        <div id="game-over-screen" class="overlay-screen hidden">
+            <h1 class="game-title" style="color: #ff5252; text-shadow: 4px 4px 0px #880e4f, 8px 8px 0px #000;">騎士倒下了！</h1>
+            <div id="final-stats" class="controls-hint" style="font-size: 18px;">
+                生存波次: 1 <br> 最終得分: 0
+            </div>
+            <button id="restart-btn" class="btn-start">再次挑戰</button>
+        </div>
+
+    </div>
+
+    <!-- JavaScript 遊戲引擎與邏輯 -->
+    <script>
+        // =========================================================================
+        // 1. 初始化與遊戲變數設定 (Initialization & Global Variables)
+        // =========================================================================
+        
+        // 取得 Canvas HTML 元素與繪圖上下文 (2D Rendering Context)
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 取得 UI 顯示元素
+        const hpBar = document.getElementById('hp-bar');
+        const energyBar = document.getElementById('energy-bar');
+        const waveDisplay = document.getElementById('wave-display');
+        const scoreDisplay = document.getElementById('score-display');
+        const weaponHud = document.getElementById('weapon-hud');
+        const skillHud = document.getElementById('skill-hud');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalStats = document.getElementById('final-stats');
+        const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+
+        // 自動調整 Canvas 解析度適應容器大小
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // 遊戲狀態開關
+        let gameRunning = false;
+        let animationFrameId;
+        let score = 0;
+        let wave = 1;
+
+        // 按鍵輸入狀態追蹤
+        const keys = {
+            w: false, a: false, s: false, d: false,
+            ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false,
+            Space: false
+        };
+
+        // 武器設定清單
+        const WEAPONS = [
+            { name: '熾熱手槍', icon: '🔫', cost: 2, cooldown: 150, speed: 11, color: '#00e5ff', damage: 15, type: 'single' },
+            { name: '霰彈槍', icon: '💥', cost: 5, cooldown: 400, speed: 9, color: '#ffea00', damage: 12, type: 'shotgun', count: 5, spread: 0.35 },
+            { name: '雷射重砲', icon: '⚡', cost: 8, cooldown: 600, speed: 16, color: '#ff1744', damage: 45, type: 'laser' }
+        ];
+
+        // 滑鼠位置與開火狀態
+        const mouse = { x: canvas.width / 2, y: canvas.height / 2, isDown: false };
+
+        // 背景星空顆粒陣列 (夜空閃爍星星)
+        const stars = [];
+        for (let i = 0; i < 60; i++) {
+            stars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                size: Math.random() * 2 + 1,
+                alpha: Math.random(),
+                speed: Math.random() * 0.02 + 0.01
+            });
+        }
+
+        // 遊戲實體陣列 (Player, Bullets, Enemy Bullets, Enemies, Particles)
+        let player;
+        let playerBullets = [];
+        let enemyBullets = [];
+        let enemies = [];
+        let particles = [];
+
+        // =========================================================================
+        // 2. 玩家物件類別 (Player Class)
+        // =========================================================================
+        class Player {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 18; // 角色半徑
+                this.speed = 4;   // 移動速度
+                
+                // 生命與能量數值
+                this.maxHp = 100;
+                this.hp = 100;
+                this.maxEnergy = 100;
+                this.energy = 100;
+                
+                // 武器系統
+                this.currentWeaponIndex = 0;
+                this.lastShootTime = 0;
+
+                // 技能系統 (雙持火力全開)
+                this.skillActive = false;
+                this.skillDuration = 5000; // 技能持續 5 秒
+                this.skillEndTime = 0;
+                this.skillCooldown = 12000; // 技能冷卻 12 秒
+                this.lastSkillTime = 0;
+                
+                this.facingAngle = 0; // 朝向角度
+            }
+
+            // 切換武器
+            switchWeapon(index) {
+                if (index !== undefined) {
+                    this.currentWeaponIndex = index % WEAPONS.length;
+                } else {
+                    this.currentWeaponIndex = (this.currentWeaponIndex + 1) % WEAPONS.length;
+                }
+                const weapon = WEAPONS[this.currentWeaponIndex];
+                weaponHud.innerText = `${weapon.icon} 武器: ${weapon.name} (切換: Q / 數字1-3)`;
+            }
+
+            // 觸發騎士主動技能：狂暴雙持
+            activateSkill() {
+                const now = Date.now();
+                if (!this.skillActive && now - this.lastSkillTime > this.skillCooldown && this.energy >= 15) {
+                    this.energy -= 15;
+                    this.skillActive = true;
+                    this.skillEndTime = now + this.skillDuration;
+                    this.lastSkillTime = now;
+                    createExplosion(this.x, this.y, '#ffd700', 30);
+                }
+            }
+
+            // 更新玩家位置與邏輯
+            update() {
+                const now = Date.now();
+
+                // 檢查技能狀態過期
+                if (this.skillActive && now > this.skillEndTime) {
+                    this.skillActive = false;
+                }
+
+                // 移動向量計算
+                let dx = 0;
+                let dy = 0;
+
+                if (keys.w || keys.ArrowUp) dy -= 1;
+                if (keys.s || keys.ArrowDown) dy += 1;
+                if (keys.a || keys.ArrowLeft) dx -= 1;
+                if (keys.d || keys.ArrowRight) dx += 1;
+
+                // 對角線移動速度正規化
+                if (dx !== 0 && dy !== 0) {
+                    dx *= 0.7071;
+                    dy *= 0.7071;
+                }
+
+                // 套用移動並確保玩家不超出邊界
+                this.x = Math.max(this.radius, Math.min(canvas.width - this.radius, this.x + dx * this.speed));
+                this.y = Math.max(this.radius, Math.min(canvas.height - this.radius, this.y + dy * this.speed));
+
+                // 計算玩家朝向滑鼠的角度
+                this.facingAngle = Math.atan2(mouse.y - this.y, mouse.x - this.x);
+
+                // 自動恢復能量值 (MP)
+                if (this.energy < this.maxEnergy) {
+                    this.energy = Math.min(this.maxEnergy, this.energy + 0.12);
+                }
+
+                // 處理持續射擊 (當滑鼠按下且能量足夠)
+                if (mouse.isDown) {
+                    this.shoot();
+                }
+
+                // 更新技能 HUD UI
+                if (this.skillActive) {
+                    const remain = Math.ceil((this.skillEndTime - now) / 1000);
+                    skillHud.innerText = `⚡ 雙持中！剩餘: ${remain}s`;
+                    skillHud.classList.add('skill-cd-active');
+                } else {
+                    const cdRemain = Math.max(0, Math.ceil((this.skillCooldown - (now - this.lastSkillTime)) / 1000));
+                    if (cdRemain > 0) {
+                        skillHud.innerText = `⚡ 技能冷卻中: ${cdRemain}s`;
+                        skillHud.classList.remove('skill-cd-active');
+                    } else {
+                        skillHud.innerText = `⚡ 技能就緒！[Space] 觸發`;
+                        skillHud.classList.add('skill-cd-active');
+                    }
+                }
+            }
+
+            // 射擊子彈邏輯
+            shoot() {
+                const now = Date.now();
+                const weapon = WEAPONS[this.currentWeaponIndex];
+                const cd = this.skillActive ? weapon.cooldown * 0.6 : weapon.cooldown; // 雙持時攻速提升
+
+                if (now - this.lastShootTime > cd && this.energy >= weapon.cost) {
+                    this.energy -= weapon.cost;
+                    this.lastShootTime = now;
+
+                    // 依據武器類型發射
+                    const fireAngle = this.facingAngle;
+                    
+                    const spawnBullet = (angOffset = 0, sideOffset = 0) => {
+                        const perpAngle = fireAngle + Math.PI / 2;
+                        const bx = this.x + Math.cos(fireAngle) * 20 + Math.cos(perpAngle) * sideOffset;
+                        const by = this.y + Math.sin(fireAngle) * 20 + Math.sin(perpAngle) * sideOffset;
+
+                        if (weapon.type === 'shotgun') {
+                            for (let i = 0; i < weapon.count; i++) {
+                                const spreadAngle = fireAngle + (Math.random() - 0.5) * weapon.spread + angOffset;
+                                playerBullets.push(new Bullet(bx, by, spreadAngle, weapon.speed, weapon.color, weapon.damage));
+                            }
+                        } else {
+                            playerBullets.push(new Bullet(bx, by, fireAngle + angOffset, weapon.speed, weapon.color, weapon.damage));
+                        }
+                        createExplosion(bx, by, weapon.color, 3);
+                    };
+
+                    // 主槍開火
+                    spawnBullet();
+
+                    // 若開啟技能，則加開副槍 (雙持)
+                    if (this.skillActive) {
+                        spawnBullet(0, -12); // 左側雙持子彈
+                        spawnBullet(0, 12);  // 右側雙持子彈
+                    }
+                }
+            }
+
+            // 繪製元氣騎士風格角色
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                // 技能爆發金色氣場外條
+                if (this.skillActive) {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, this.radius + 6, 0, Math.PI * 2);
+                    ctx.strokeStyle = `rgba(255, 215, 0, ${0.5 + Math.sin(Date.now() / 100) * 0.3})`;
+                    ctx.lineWidth = 4;
+                    ctx.stroke();
+                }
+
+                // 繪製騎士身體影子
+                ctx.beginPath();
+                ctx.ellipse(0, 15, 16, 8, 0, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fill();
+
+                // 繪製頭盔/身體 (紅色圓角頭盔)
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.skillActive ? '#ff9800' : '#d32f2f'; // 雙持時變為金黃紅色
+                ctx.fill();
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#1a0000';
+                ctx.stroke();
+
+                // 繪製頭盔面罩縫隙 (黑色暗區)
+                ctx.beginPath();
+                ctx.arc(0, -2, 11, 0.2, Math.PI - 0.2);
+                ctx.fillStyle = '#111';
+                ctx.fill();
+
+                // 繪製騎士發光的發光眼睛 (黃色元氣騎士眼)
+                ctx.fillStyle = '#ffeb3b';
+                ctx.fillRect(-6, -4, 4, 4);
+                ctx.fillRect(2, -4, 4, 4);
+
+                // 繪製武器 (手上拿著的武器)
+                ctx.rotate(this.facingAngle);
+                const currentWp = WEAPONS[this.currentWeaponIndex];
+                ctx.fillStyle = '#424242';
+                ctx.fillRect(10, 2, 12, 6);
+                ctx.fillStyle = currentWp.color;
+                ctx.fillRect(18, 1, 6, 8); // 槍口特效顏色
+
+                // 雙持副槍繪製
+                if (this.skillActive) {
+                    ctx.fillStyle = '#424242';
+                    ctx.fillRect(10, -8, 12, 6);
+                    ctx.fillStyle = currentWp.color;
+                    ctx.fillRect(18, -9, 6, 8);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        // =========================================================================
+        // 3. 子彈物件類別 (Bullet Class)
+        // =========================================================================
+        class Bullet {
+            constructor(x, y, angle, speed, color, damage) {
+                this.x = x;
+                this.y = y;
+                this.angle = angle;
+                this.speed = speed;
+                this.color = color;
+                this.damage = damage;
+                this.radius = 4;
+                this.markedForDeletion = false; // 是否準備銷毀
+            }
+
+            update() {
+                // 子彈直線推進
+                this.x += Math.cos(this.angle) * this.speed;
+                this.y += Math.sin(this.angle) * this.speed;
+
+                // 超出邊界自動標記刪除
+                if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+                    this.markedForDeletion = true;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 10; // 子彈外發光
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // =========================================================================
+        // 4. 敵人物件類別 (Enemy Class - 小怪與 Boss)
+        // =========================================================================
+        class Enemy {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.type = type; // 敵人類型：'goblin' (哥布林) 或 'boss' (大怪物)
+                
+                if (type === 'boss') {
+                    this.radius = 32;
+                    this.speed = 1.2;
+                    this.hp = 120 + wave * 30;
+                    this.maxHp = this.hp;
+                    this.color = '#7b1fa2'; // 哥布林祭司紫
+                    this.scoreValue = 100;
+                    this.shootCooldown = 1000;
+                } else {
+                    this.radius = 15;
+                    this.speed = 2.0 + Math.random() * 0.5;
+                    this.hp = 25 + wave * 5;
+                    this.maxHp = this.hp;
+                    this.color = '#388e3c'; // 哥布林綠
+                    this.scoreValue = 20;
+                    this.shootCooldown = 2000;
+                }
+
+                this.lastShootTime = Date.now() + Math.random() * 1000;
+                this.markedForDeletion = false;
+            }
+
+            update() {
+                // 向玩家位置逼近
+                const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                this.x += Math.cos(angle) * this.speed;
+                this.y += Math.sin(angle) * this.speed;
+
+                // 敵人發射子彈邏輯
+                const now = Date.now();
+                if (now - this.lastShootTime > this.shootCooldown) {
+                    this.shoot(angle);
+                    this.lastShootTime = now;
+                }
+            }
+
+            shoot(angle) {
+                if (this.type === 'boss') {
+                    // Boss 發射 3 連發散彈
+                    for (let offset of [-0.3, 0, 0.3]) {
+                        enemyBullets.push(new Bullet(this.x, this.y, angle + offset, 4, '#ff1744', 10));
+                    }
+                } else {
+                    // 一般小怪單發子彈
+                    enemyBullets.push(new Bullet(this.x, this.y, angle, 4.5, '#ff9100', 8));
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+
+                // 影子
+                ctx.beginPath();
+                ctx.ellipse(0, this.radius * 0.8, this.radius, this.radius * 0.5, 0, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fill();
+
+                // 身體圓形
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#000';
+                ctx.stroke();
+
+                // 邪惡紅色眼睛
+                ctx.fillStyle = '#ffeb3b';
+                ctx.fillRect(-this.radius / 2, -this.radius / 3, 5, 5);
+                ctx.fillRect(this.radius / 4, -this.radius / 3, 5, 5);
+
+                // 敵人血條 (頭頂小血條)
+                if (this.hp < this.maxHp) {
+                    const barW = this.radius * 2;
+                    const barH = 5;
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(-this.radius, -this.radius - 12, barW, barH);
+                    ctx.fillStyle = '#ff1744';
+                    ctx.fillRect(-this.radius, -this.radius - 12, (this.hp / this.maxHp) * barW, barH);
+                }
+
+                ctx.restore();
+            }
+        }
+
+        // =========================================================================
+        // 5. 粒子特效類別 (Particle Class - 爆炸與打擊特效)
+        // =========================================================================
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.radius = Math.random() * 3 + 2;
+                // 隨機爆炸擴散速度
+                this.vx = (Math.random() - 0.5) * (Math.random() * 6);
+                this.vy = (Math.random() - 0.5) * (Math.random() * 6);
+                this.alpha = 1;
+                this.decay = Math.random() * 0.03 + 0.02; // 透明度衰減率
+                this.markedForDeletion = false;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.decay;
+                if (this.alpha <= 0) {
+                    this.markedForDeletion = true;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, this.alpha);
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // 產生爆炸粒子的輔助函式
+        function createExplosion(x, y, color, count = 10) {
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle(x, y, color));
+            }
+        }
+
+        // =========================================================================
+        // 6. 敵人生成與波次管理 (Wave Spawning Manager)
+        // =========================================================================
+        function spawnWave() {
+            enemies = [];
+            const enemyCount = 4 + wave * 2; // 隨波次增加數量
+
+            for (let i = 0; i < enemyCount; i++) {
+                // 在地圖邊緣隨機產生敵人
+                let x, y;
+                if (Math.random() < 0.5) {
+                    x = Math.random() < 0.5 ? -20 : canvas.width + 20;
+                    y = Math.random() * canvas.height;
+                } else {
+                    x = Math.random() * canvas.width;
+                    y = Math.random() < 0.5 ? -20 : canvas.height + 20;
+                }
+
+                // 每 3 波出現一次 Boss
+                const type = (wave % 3 === 0 && i === 0) ? 'boss' : 'goblin';
+                enemies.push(new Enemy(x, y, type));
+            }
+
+            waveDisplay.innerText = `WAVE ${wave}`;
+        }
+
+        // =========================================================================
+        // 7. 碰撞偵測與核心遊戲循環 (Collision & Main Game Loop)
+        // =========================================================================
+        
+        // 圓形碰撞檢測輔助函式
+        function checkCollision(circle1, circle2) {
+            const dx = circle1.x - circle2.x;
+            const dy = circle1.y - circle2.y;
+            const distance = Math.hypot(dx, dy);
+            return distance < circle1.radius + circle2.radius;
+        }
+
+        // 主遊戲更新與渲染循環
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            // 1. 清空畫布並繪製夜空星星
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 繪製背景閃爍星星
+            stars.forEach(star => {
+                star.alpha += star.speed;
+                if (star.alpha > 1 || star.alpha < 0.2) star.speed = -star.speed;
+                ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(star.alpha)})`;
+                ctx.fillRect(star.x, star.y, star.size, star.size);
+            });
+
+            // 2. 更新與繪製玩家
+            player.update();
+            player.draw();
+
+            // 3. 更新與繪製玩家子彈
+            playerBullets.forEach(bullet => {
+                bullet.update();
+                bullet.draw();
+
+                // 檢查玩家子彈是否擊中敵人
+                enemies.forEach(enemy => {
+                    if (!bullet.markedForDeletion && checkCollision(bullet, enemy)) {
+                        bullet.markedForDeletion = true;
+                        enemy.hp -= bullet.damage;
+                        createExplosion(bullet.x, bullet.y, '#ffff00', 6);
+
+                        // 敵人死亡邏輯
+                        if (enemy.hp <= 0) {
+                            enemy.markedForDeletion = true;
+                            score += enemy.scoreValue;
+                            scoreDisplay.innerText = `SCORE: ${score}`;
+                            createExplosion(enemy.x, enemy.y, enemy.color, 20);
+                            
+                            // 擊殺敵人有機率回復 MP
+                            player.energy = Math.min(player.maxEnergy, player.energy + 10);
+                        }
+                    }
+                });
+            });
+
+            // 4. 更新與繪製敵人子彈
+            enemyBullets.forEach(bullet => {
+                bullet.update();
+                bullet.draw();
+
+                // 檢查敵人子彈是否擊中玩家
+                if (!bullet.markedForDeletion && checkCollision(bullet, player)) {
+                    bullet.markedForDeletion = true;
+                    player.hp -= bullet.damage;
+                    createExplosion(player.x, player.y, '#ff0000', 12);
+
+                    // 檢查玩家死亡
+                    if (player.hp <= 0) {
+                        player.hp = 0;
+                        endGame();
+                    }
+                }
+            });
+
+            // 5. 更新與繪製敵人
+            enemies.forEach(enemy => {
+                enemy.update();
+                enemy.draw();
+
+                // 敵人與玩家碰撞 (碰撞傷害)
+                if (checkCollision(enemy, player)) {
+                    player.hp -= 0.5; // 持續碰撞扣血
+                    if (player.hp <= 0) endGame();
+                }
+            });
+
+            // 6. 更新與繪製粒子特效
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+
+            // 7. 過濾並移除被標記刪除的物件
+            playerBullets = playerBullets.filter(b => !b.markedForDeletion);
+            enemyBullets = enemyBullets.filter(b => !b.markedForDeletion);
+            enemies = enemies.filter(e => !e.markedForDeletion);
+            particles = particles.filter(p => !p.markedForDeletion);
+
+            // 8. 檢查波次清除 condition (當前波次敵人全滅時進入下一波)
+            if (enemies.length === 0) {
+                wave++;
+                spawnWave();
+            }
+
+            // 9. 更新血條與能量條 UI
+            hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
+            energyBar.style.width = `${Math.max(0, (player.energy / player.maxEnergy) * 100)}%`;
+
+            // 繼續下一幀循環
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // =========================================================================
+        // 8. 事件監聽與遊戲控制 (Event Listeners & Game State Control)
+        // =========================================================================
+        
+        // 鍵盤按下事件
+        window.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+
+            // 空白鍵啟動技能
+            if (e.code === 'Space' && gameRunning && player) {
+                player.activateSkill();
+            }
+
+            // Q 鍵或 1-3 鍵切換武器
+            if ((e.key === 'q' || e.key === 'Q') && gameRunning && player) {
+                player.switchWeapon();
+            }
+            if (['1', '2', '3'].includes(e.key) && gameRunning && player) {
+                player.switchWeapon(parseInt(e.key) - 1);
+            }
+        });
+
+        // 鍵盤放開事件
+        window.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+        });
+
+        // 滑鼠移動事件 (更新瞄準位置)
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+
+        // 滑鼠按下與放開 (射擊)
+        canvas.addEventListener('mousedown', (e) => {
+            if (e.button === 0) mouse.isDown = true;
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (e.button === 0) mouse.isDown = false;
+        });
+
+        // 開始新遊戲
+        function startGame() {
+            score = 0;
+            wave = 1;
+            playerBullets = [];
+            enemyBullets = [];
+            particles = [];
+            
+            // 建立玩家實體
+            player = new Player(canvas.width / 2, canvas.height / 2);
+            player.switchWeapon(0); // 重設顯示初始武器
+            
+            // 更新 UI
+            scoreDisplay.innerText = `SCORE: ${score}`;
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            
+            // 生成第一波敵人並啟動遊戲循環
+            spawnWave();
+            gameRunning = true;
+            gameLoop();
+        }
+
+        // 結束遊戲
+        function endGame() {
+            gameRunning = false;
+            cancelAnimationFrame(animationFrameId);
+            
+            // 顯示遊戲結束統計 UI
+            finalStats.innerHTML = `最高生存波次: <b>${wave}</b><br>獲得總分: <b>${score}</b>`;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        // 按鈕點擊事件綁定
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', startGame);
+
+    </script>
+</body>
+</html>
